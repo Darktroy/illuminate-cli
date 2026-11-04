@@ -1,0 +1,61 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        HOST_UID: ${HOST_UID:-1000}
+        HOST_GID: ${HOST_GID:-1000}
+    image: bitech-illuminate:dev
+    container_name: illuminate-app
+    working_dir: /app
+    volumes:
+      - .:/app
+      - composer-cache:/home/app/.composer/cache
+    environment:
+      XDEBUG_MODE: ${XDEBUG_MODE:-off}
+      DB_CONNECTION: sqlite
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-illuminate}
+      DB_USERNAME: ${DB_USERNAME:-illuminate}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - illuminate
+    tty: true
+    stdin_open: true
+
+  db:
+    image: mysql:8.4
+    container_name: illuminate-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-illuminate}
+      MYSQL_USER: ${DB_USERNAME:-illuminate}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      TZ: Africa/Cairo
+    ports:
+      - "${DB_FORWARD_PORT:-3307}:3306"   # host 3307 -> avoids clashing with a local MySQL on 3306
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    networks:
+      - illuminate
+
+volumes:
+  composer-cache:
+  db-data:
+
+networks:
+  illuminate:
+    driver: bridge
